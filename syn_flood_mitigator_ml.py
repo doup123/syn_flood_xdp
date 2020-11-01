@@ -53,7 +53,7 @@ def bpf_logic(bpf_program):
         try:
             if count==1:
                 #pass
-                create_tcp_signatures(tcp_signatures_map,pd.read_csv("/mnt/journal1/ip_stresser_com/tcp_syn_ddos/tcp_syn_ip_stresser_highly_distributed.pcap.tcp_syn_packet_fields.csv").drop_duplicates())
+                create_tcp_signatures(tcp_signatures_map,pd.read_csv("test.csv").drop_duplicates())
             print('Timewindow {}'.format(count))
             for elem in tcp_signatures_map.keys():
                 print(elem.ttl,elem.window,tcp_signatures_map[elem].value)
