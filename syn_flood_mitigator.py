@@ -16,6 +16,12 @@ import socket
 import struct
 import ipaddress
 import binascii
+import socket, struct
+import socket
+from ctypes import c_uint
+
+
+# Convert to an IP address string
 
 def reverser(ipa):
     import ipaddress
@@ -30,7 +36,7 @@ def set_ip_to_blacklist(ip,bpf_map):
     return True
 
 def bpf_logic(bpf_program):
-    trie = bpf_program.get_table("trie")
+    trie = bpf_program.get_table("tcp_syn")
     #drop_list = ["20."+str(k)+"."+str(j)+"."+str(i) for k in range(0,20) for j in range(0,256) for i in range(0,256)]
     #drop_list = drop_list[0:10000]
     #start = time.time()
@@ -44,8 +50,9 @@ def bpf_logic(bpf_program):
         try:
             print('Timewindow {}'.format(count))
             for elem in trie.keys():
+                current_time = int(time.perf_counter() * 1e9)
                 print(elem,trie[elem].value)
-                if count==15:
+                if (current_time - trie[elem].value >= 60 * 1e9):
                     trie.__delitem__(elem)
                     print("Key Deleted: "+str(elem))
             

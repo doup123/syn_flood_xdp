@@ -16,7 +16,8 @@
 
 //BPF_LPM_TRIE(trie, struct key_v4, int, 255);
 //BPF_LPM_TRIE(tre);
-BPF_HASH(trie, u32, u64,1000000);
+BPF_HASH(tcp_syn, u32, u64,1000000);
+BPF_HASH(tcp_rst, u32, u64,1000000);
 //BPF_HASH(dns_counter,struct key,u64,1000000);
 //BPF_HASH(dns_dropper,struct key,u64,1000000);
 //BPF_HASH(dropcnt,u32,u64,1000);
@@ -49,27 +50,53 @@ int  xdp_program(struct xdp_md *ctx)
 		if (iph->protocol == IPPROTO_TCP)
        {
            //u64 start = bpf_ktime_get_ns();
-	   u64 value = trie.lookup(&iph->saddr);
-           //u64 stop = bpf_ktime_get_ns();
-           //bpf_trace_printk("Time %lld \n",start/1000000000);
-           //bpf_trace_printk("Lookup_Time %lld \n",stop-start);
-	   // BPF HASH MAP  
-	   //u64 value = trie.lookup(&iph->saddr);
+	   u64 *value = tcp_syn.lookup(&iph->saddr);
 	   if (value)
 			{
-			//bpf_trace_printk("IP Whitelisted");
+           		u64 ts = bpf_ktime_get_ns();
+           		tcp_syn.update(&iph->saddr,&ts);
 			return XDP_PASS;
 			}
-        
+           if (tcph->syn==1 || tcph->ack==1)
+	   {
            action = syn_cookie_mitigation(data,data_end,iph,tcph);
+	   }
            // This is a hack for inserting ip address to the map
            if (action==32)
            {
-           u64 ts = bpf_ktime_get_ns() /1000000000;
-           // Here is the destionation address since it is swapped in the syn_cookie mitigation function
-           trie.insert(&iph->daddr,&ts);
+           u64 ts = bpf_ktime_get_ns();
+           // Here is the destination address since it is swapped in the syn_cookie mitigation function
+           tcp_syn.insert(&iph->daddr,&ts);
            action = XDP_TX;  
 	   }
+	   if (tcph->rst==1)
+	   {
+
+               u64 *timestamp = tcp_rst.lookup(&iph->daddr);
+
+                if (!timestamp) {
+                    // If no entry exists for RST packets, create one
+                    u64 ts = bpf_ktime_get_ns();
+                    tcp_rst.insert(&iph->daddr, &ts);
+                } else {
+                    u64 current_time = bpf_ktime_get_ns();
+                    u64 last_time = *timestamp;
+                    u64 time_diff = current_time - last_time;
+		   //bpf_trace_printk("Current Time: %llu\n", current_time);
+		   // bpf_trace_printk("Last Time: %llu\n", last_time);
+		   // bpf_trace_printk("Time Diff: %llu\n", time_diff);
+                    // Adjust this rate limit threshold as needed
+                    if (time_diff >= 1000000000) { // e.g., time diff defines the packet rate 10^9/time_diff which is in nanoseconds
+                        // Update the timestamp
+		        tcp_rst.update(&iph->daddr, &current_time);	
+                    }
+		    else
+		    {
+		    action = XDP_DROP;
+		    }
+		}
+	}
+	   
 	return action;
 }
 return action;

@@ -115,7 +115,7 @@ u8 action = XDP_DROP;
        else
        {
        // if packet is not syn or ack drop
-       return XDP_DROP;
+       return XDP_PASS;
        }
        // mac swap
        swap_src_dst_mac(data);
